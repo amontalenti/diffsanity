@@ -1,5 +1,8 @@
-run: # test with basic backup operation
+run: # test with basic check operation
 	python diffsanity.py check fakeroot/src/ fakeroot/backup/
+
+report: # test with basic check plus report file
+	python diffsanity.py check --report missing.txt fakeroot/src/ fakeroot/backup/
 
 compile: # compile requirements with uv
 	uv pip compile requirements.in >requirements.txt
