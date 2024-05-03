@@ -1,19 +1,27 @@
 import os
 from hashlib import md5
+import datetime as dt
 
 import click
 import fs
 import rawpy
+
+from fs.errors import ResourceNotFound
 from fs.walk import Walker
+
 from PIL import Image
+
+
 
 
 def get_file_hash(file_path, fs_obj):
     """Generate an MD5 hash for the file's bytes, handling image files specially."""
-    if file_path.lower().endswith((".cr2", ".cr3")):
-        # FIXME: temporarily skipping md5sum of RAW files since we know they are always
-        # paired with JPG files, and this speeds things up
-        return "0" * 8
+    SKIP_RAW = False
+    if SKIP_RAW:
+        if file_path.lower().endswith((".cr2", ".cr3")):
+            # Debug option to skip skip d5sum of RAW files since we know they are always
+            # paired with JPG files, and this speeds things up
+            return "0" * 8
     file_bytes = get_file_bytes(file_path, fs_obj)
     if file_bytes is None:
         # if not a known file type, we'll just chunk and md5 the file
@@ -50,6 +58,36 @@ def get_file_bytes(file_path, fs_obj):
             return None
 
 
+def generate_primary_key(file_path, fs_obj):
+    """
+    Generates a primary key for the given file path using PyFilesystem2.
+
+    The primary key is a tuple containing:
+    - filename: the name of the file (not the full path)
+    - mtime: last modification time of the file, as an integer timestamp
+    - size: size of the file in bytes
+
+    Parameters:
+        file_path (str): The path to the file.
+        fs_obj (FS): A PyFilesystem2 filesystem object.
+
+
+    Returns:
+        tuple: A tuple (filename, mtime, size) serving as the primary key.
+    """
+    # Split the file path into directory path and filename
+    dir_path, filename = os.path.split(file_path)
+    # Open the filesystem based on the directory path
+    if not fs_obj.exists(file_path):
+        raise ResourceNotFound(f"No file found at the specified path: {file_path}")
+    info = fs_obj.getinfo(file_path, namespaces=['details'])
+    # Get modification time as UTC ISO8601 date string
+    utc_mtime = dt.datetime.utcfromtimestamp(int(info.modified.timestamp())).isoformat()
+    # Get size in num bytes
+    size = info.size
+    return (utc_mtime, filename, size)
+
+
 def generate_hashes(directory):
     """Generate hashes for all files in the directory."""
     print(f"Generating hashes for {directory}:")
@@ -58,7 +96,9 @@ def generate_hashes(directory):
         for path in Walker().files(fs_obj):
             print(f"{path} | ", end="", flush=True)
             file_hash = get_file_hash(path, fs_obj)
-            print(f"{file_hash}", flush=True)
+            print(f"{file_hash}", end="", flush=True)
+            primary_key = generate_primary_key(path, fs_obj)
+            print(f" | {primary_key}", flush=True)
             hashes[file_hash] = path
     print(" Done.")
     return hashes
