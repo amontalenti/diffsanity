@@ -109,7 +109,7 @@ def check(source_folder, backup_folder, report):
                     click.echo(f"Missing {path} with hash {hash}")
                     full_path = os.path.join(source_folder, path.lstrip("/"))
                     file.write(f"{full_path}\n")
-                    click.echo(f"Missing file report generated in: {report}")
+                click.echo(f"Missing file report generated in: {report}")
         else:
             # FIXME: code duplication
             for hash, path in missing_hashes.items():
