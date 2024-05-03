@@ -7,11 +7,6 @@ import rawpy
 from fs.walk import Walker
 from PIL import Image
 
-# FIXME: obviously, it'd be awesome to generate the hashes once, store them in a database,
-# and then only regenerate them for files that had change in numbytes or mtime. This way
-# I wouldn't have to regenerate the hashes of the backup_folder even as I do comparisons
-# against several source_folders
-
 
 def get_file_hash(file_path, fs_obj):
     """Generate an MD5 hash for the file's bytes, handling image files specially."""
