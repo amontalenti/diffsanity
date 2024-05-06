@@ -7,7 +7,7 @@ fs==2.4.16
 numpy==1.26.4
     # via rawpy
 pillow==10.3.0
-rawpy==0.20.0
+rawpy==0.21.0
 setuptools==69.5.1
     # via fs
 six==1.16.0

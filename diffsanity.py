@@ -1,17 +1,13 @@
+import datetime as dt
 import os
 from hashlib import md5
-import datetime as dt
 
 import click
 import fs
 import rawpy
-
 from fs.errors import ResourceNotFound
 from fs.walk import Walker
-
 from PIL import Image
-
-
 
 
 def get_file_hash(file_path, fs_obj):
@@ -80,7 +76,7 @@ def generate_primary_key(file_path, fs_obj):
     # Open the filesystem based on the directory path
     if not fs_obj.exists(file_path):
         raise ResourceNotFound(f"No file found at the specified path: {file_path}")
-    info = fs_obj.getinfo(file_path, namespaces=['details'])
+    info = fs_obj.getinfo(file_path, namespaces=["details"])
     # Get modification time as UTC ISO8601 date string
     utc_mtime = dt.datetime.utcfromtimestamp(int(info.modified.timestamp())).isoformat()
     # Get size in num bytes
@@ -136,22 +132,25 @@ def check(source_folder, backup_folder, report):
         h: source_hashes[h] for h in source_hashes if h not in backup_hashes
     }
 
-    if missing_hashes:
-        click.echo("Some hashes are missing in the backup folder:")
-        if report:
-            with open(report, "w") as file:
-                for hash, path in missing_hashes.items():
-                    click.echo(f"Missing {path} with hash {hash}")
-                    full_path = os.path.join(source_folder, path.lstrip("/"))
-                    file.write(f"{full_path}\n")
-                click.echo(f"Missing file report generated in: {report}")
-        else:
-            # FIXME: code duplication
-            for hash, path in missing_hashes.items():
-                full_path = os.path.join(source_folder, path.lstrip("/"))
-                click.echo(f"Missing {path} with hash {hash}")
-    else:
+    def iterate_hashes():
+        for hash, path in missing_hashes.items():
+            click.echo(f"Missing {path} with hash {hash}")
+            full_path = os.path.join(source_folder, path.lstrip("/"))
+            yield full_path, path, hash
+
+    if not missing_hashes:
         click.echo("All hashes from source folder are present in the backup folder.")
+        return
+
+    click.echo("Some hashes are missing in the backup folder:")
+    if report:
+        with open(report, "w") as file:
+            for full_path, _, _ in iterate_hashes():
+                file.write(f"{full_path}\n")
+            click.echo(f"Missing file report generated in: {report}")
+    else:
+        for _, path, hash in iterate_hashes():
+            full_path = os.path.join(source_folder, path.lstrip("/"))
 
 
 if __name__ == "__main__":
