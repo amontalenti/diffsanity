@@ -149,8 +149,8 @@ def check(source_folder, backup_folder, report):
                 file.write(f"{full_path}\n")
             click.echo(f"Missing file report generated in: {report}")
     else:
-        for _, path, hash in iterate_hashes():
-            full_path = os.path.join(source_folder, path.lstrip("/"))
+        for _, _, _ in iterate_hashes():
+            pass
 
 
 if __name__ == "__main__":
