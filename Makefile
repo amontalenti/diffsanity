@@ -1,8 +1,16 @@
-run: # test with basic check operation
+all: compile lint format isort # all tools
+
+# -- runs --
+
+run: run-data # default run
+
+run-data: # test with basic check against real data
 	python diffsanity.py check fakeroot/src/ fakeroot/backup/
 
-report: # test with basic check plus report file
+run-report: # test with basic check, plus report file option
 	python diffsanity.py check --report missing.txt fakeroot/src/ fakeroot/backup/
+
+# -- tools --
 
 compile: # compile requirements with uv
 	uv pip compile requirements.in >requirements.txt
