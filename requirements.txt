@@ -12,3 +12,4 @@ setuptools==69.5.1
     # via fs
 six==1.16.0
     # via fs
+xxhash==3.4.1

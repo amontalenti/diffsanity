@@ -8,6 +8,7 @@ import rawpy
 from fs.errors import ResourceNotFound
 from fs.walk import Walker
 from PIL import Image
+from xxhash import xxh32, xxh64, xxh128
 
 
 def get_file_hash(file_path, fs_obj):
@@ -15,20 +16,31 @@ def get_file_hash(file_path, fs_obj):
     SKIP_RAW = False
     if SKIP_RAW:
         if file_path.lower().endswith((".cr2", ".cr3")):
-            # Debug option to skip skip d5sum of RAW files since we know they are always
-            # paired with JPG files, and this speeds things up
+            # Debug option to skip skip md5sum of RAW files since we know they are always
+            # paired with JPG files, and this speeds things up a whole lot
             return "0" * 8
+
     file_bytes = get_file_bytes(file_path, fs_obj)
+    hash_fn = md5
+
+    USE_XXHASH_ALGO = False
+    if USE_XXHASH_ALGO:
+        # Debug option to try using the xxhash library, as described here:
+        # https://xxhash.com/
+        hash_fn = xxh32
+        hash_fn = xxh64
+        hash_fn = xxh128
+
     if file_bytes is None:
         # if not a known file type, we'll just chunk and md5 the file
         # examples: .mov, .mp4, .mlv
         with fs_obj.open(file_path, "rb") as f:
-            hash_md5 = md5()
+            hasher = hash_fn()
             while chunk := f.read(4096):
-                hash_md5.update(chunk)
-            return hash_md5.hexdigest()
-    hash_md5 = md5(file_bytes)
-    return hash_md5.hexdigest()
+                hasher.update(chunk)
+            return hasher.hexdigest()
+    hasher = hash_fn(file_bytes)
+    return hasher.hexdigest()
 
 
 def get_file_bytes(file_path, fs_obj):
@@ -124,6 +136,10 @@ def check(source_folder, backup_folder, report):
     """Check that all files in source_folder are backed up in backup_folder."""
     source_hashes = generate_hashes(source_folder)
     backup_hashes = generate_hashes(backup_folder)
+
+    # TODO: experiment with caching
+    #cachedict = {eval(key): value for key, value in (line.strip().split(" | ") for line in open("cachefile", "r"))}
+    #print(cachedict.items()[0])
 
     # could cache the results here with a SQLite database or similar
     # would need to figure out how to hash the source and backup media drives (lsblk perhaps?)

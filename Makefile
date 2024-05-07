@@ -15,6 +15,23 @@ run-report: # test with basic check, plus report file option
 compile: # compile requirements with uv
 	uv pip compile requirements.in >requirements.txt
 
+TEMP_FILE := $(shell mktemp)
+compile-dev: requirements.in requirements-dev.in # compile requirements for dev venv
+	cat requirements.in requirements-dev.in >$(TEMP_FILE) | uv pip compile $(TEMP_FILE) >requirements-dev.txt
+
+.PHONY: devenv
+SHELL := /bin/bash
+devenv:
+	uv venv devenv
+	uv pip install -r requirements-dev.txt
+	@echo "Done."
+	@echo
+	@echo "Activate devenv:"
+	@echo "  source devenv/bin/activate"
+	@echo
+	@echo "Then, run ipython:"
+	@echo "  ipython"
+
 lint: # ruff check tool
 	ruff check diffsanity.py
 
