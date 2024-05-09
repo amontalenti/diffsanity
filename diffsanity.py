@@ -168,7 +168,7 @@ def get_manifest(directory):
 
 def generate_hashes(directory):
     """Generate hashes for all files in the directory."""
-    print(f"Generating hashes for {directory}:")
+    print(f"Generating hashes for {directory} ('*' prefix on hash means cache hit):")
     hashes = {}
     cachedict = get_manifest(directory)
     with fs.open_fs(directory) as fs_obj:
@@ -183,7 +183,8 @@ def generate_hashes(directory):
                 file_hash = get_file_hash(path, fs_obj)
             print(f"{path} | ", end="", flush=True)
             print(f"{cache_hit}{file_hash}", end="", flush=True)
-            print(f" | {primary_key}", flush=True)
+            print(f" | {primary_key}", end="", flush=True)
+            print("", flush=True)
             hashes[file_hash] = path
     print(" Done.")
     return hashes
