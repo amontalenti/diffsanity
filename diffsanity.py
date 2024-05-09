@@ -11,6 +11,22 @@ from PIL import Image
 from xxhash import xxh32, xxh64, xxh128
 
 
+def pillow_bytes_no_exif_metadata(file_path, fs_obj):
+    pass
+
+
+def rawpy_bytes_no_exif_metadata(file_path, fs_obj):
+    pass
+
+
+def file_bytes(file_path, fs_obj):
+    pass
+
+
+def filename_mtime_numbytes(file_path, fs_obj):
+    pass
+
+
 class DiffSanityPlan:
     hash_fn_options = (md5, xxh32, xxh64, xxh128)
 
@@ -46,22 +62,6 @@ class DiffSanityPlan:
     # skip % of files in source for debugging to speed up repeated test runs
     # 0 means 100% of files are processed (0 are skipped)
     debug_skip_percent = 0
-
-
-def pillow_bytes_no_exif_metadata(file_path, fs_obj):
-    pass
-
-
-def rawpy_bytes_no_exif_metadata(file_path, fs_obj):
-    pass
-
-
-def file_bytes(file_path, fs_obj):
-    pass
-
-
-def filename_mtime_numbytes(file_path, fs_obj):
-    pass
 
 
 def get_file_hash(file_path, fs_obj):
