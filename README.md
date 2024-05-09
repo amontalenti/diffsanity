@@ -19,8 +19,9 @@ hashes their entire byte content.
 Install `diffsanity` by cloning the repository and installing the required
 dependencies via `pip`. These requirements include:
 
-- `Pillow`, for handling JPG images
-- `rawpy`, for handling CR2 (aka RAW) images
+- `Pillow`, for handling JPG and other common image types
+- `rawpy`, for handling Canon RAW (cr2/cr3) images
+- `xxhash` (optional), for using a faster hashing algorithm than MD5
 - `PyFilesystem`, for traversing the filesystem
 - `click`, for the CLI interface
 
@@ -41,36 +42,45 @@ its files, and then ensure these hashes are present (somewhere) in the
 
 If any hashes are missing, diffsanity will report the missing files.
 
-## Future Improvements
+## Implementation details
 
-### Plain file, byte, and mtime hashing
+### Consider the binary hash, not full file path
 
-Though using content-aware MD5 hashes was where this tool started, the truth
-is, for many filesystem comparisons, doing filename, byte size, and mtime
-comparisons is good enough. If you look at `rsync`, it doesn't bother with
-checksums unless you ask it to do so. And if you look at `rclone`, it only uses
-them if they are "essentially free" in the remote filesystem (e.g. Amazon S3).
+The paths aren't matched on source media and backup folder sides. Thus, we are
+hunting for identical or nearly-identical files in different filepaths in the
+backup folder tree. Since the full file path on either side is ignored for the
+calculation of whether a given binary file is "missing" within `diffsanity` it
+means you can know for sure a given source file has been backed up "somewhere"
+in the backup folder.
 
-### MD5 hash caching
+### Strip the EXIF metadata by looking at image pixel bytes only
 
-MD5 hashes are expensive to calculate, especially for the backup disk, which,
-pretty much by definition, contains a lot of data and files. It'd be nice to
-cache ones that have already been calculated in some sort of SQLite database or
-similar. This way, you only have to do it once, or update the MD5 hash if the
-file, byte, and mtime changed for a given file (under assumption that if that
-metadata changed, then so did the MD5).
+The most important filetype-specific rule `diffsanity` implements does hashes
+of big photo files like JPGs and C-RAW while stripping EXIF metadata away. This
+means that photo files that contain the same image pixels, but different
+metadata, will hash to the same value. This helps especially because on Canon
+hardware you have multiple SD/CF card writers set up in a dumb RAID and the
+metadata across those RAID'ed media tends to get out of sync.
 
-Along with this, we might need a technique to identify the source folders and
-backup folders. That is, what block device they are in. Perhaps using `lsblk`
-or similar APIs.
+### Key files on `(filename, mtime, numbytes)` to enable hash caching
 
-### Multiple source folders
+Rather than rehashing a backup folder, this tool will look for a file called
+`filehash.sum`. This file contains pipe-separated values (` | `) to store
+pre-computed hashes for "primary key" representations of the files, namely the
+filename (as a str), mtime in ISO8601 format (as a str), and num bytes (as a
+str). This is because computing an MD5 or other hash of large binary files is
+CPU- and I/O-intensive, so the caching does speedups of up to 150,000% for
+large file trees.
+
+## Future ideas
+
+### Support multiple source folders
 
 In a common use case, let's say I have an SDCard and a CompactFlash card, both
 plugged into the same USB-C reader. I want to check if all the data from both
 of those is in the backup folder.
 
-### Patch script
+### Generate a patch script
 
 Let's say I find out that 100 files from my SDCard are missing from the backup
 folder. I'd like to have a patch script made available as a "repair plan" --
@@ -78,26 +88,35 @@ that is, a script that could rectify the situation. It could be as simple as
 copying the files that are missing to a new folder with a name like
 "patch-YYYY-MM-DD/", and then I can manually rename it afterwards.
 
+### Extend into near-duplicate hashing algorithms
+
+Right now, we're implementing hashing algorithms that are meant to find exact
+duplicates -- at least as far as the image pixel data is concerned. You could
+imagine extended`diffsanity` to support algorithms for "near duplicate"
+detection. Although this wouldn't be as helpful in a backup context, it could
+lead to techniques for clustering near-duplicate images with a shell-friendly
+and UNIXy workflow, which could be quite cool.
+
 ## Concerns
 
 ### Advanced `rsync` and `rclone` usage
 
-Though I know there isn't any tool out there that peers into JPG and CR2 files
-to look only at the "sensor bytes" rather than the full bytestream including
-metadata, and that `rclone` and `rsync` definitely don't help with that. I do
-wonder how much of `diffsanity` reinvents clever scripting of `rsync` and
-`rclone`. For example, in my first cut at this problem I was going to do the
-following:
+Though I know there isn't any tool out there that peers into JPG and C-RAW
+files to look only at the "sensor bytes" rather than the full bytestream
+including metadata, and that `rclone` and `rsync` definitely don't help with
+that. I do wonder how much of `diffsanity` reinvents clever scripting of
+`rsync` and `rclone`. For example, in my first cut at this problem I was going
+to do the following:
 
-- create a "stripped of metadata" temporary folder with the JPG and CR2 files
+- create a "stripped of metadata" temporary folder with the JPG and C-RAW files
 - likewise create a parallel folder of same in destination
-- use `rsync` or `rclone` to compare them
+- use `rsync --dry-run` and/or `rclone check` to compare them
 
 Another idea was to use an optimized tool like `md5deep -r`, and then only
 do a further "peer-into-the-file" comparison if I find identically named
 files with different hashes.
 
-### Performance
+### CPU performance
 
 This tool can suffer not just from GIL performance issues (single core) but
 also I/O and CPU interleaving issues. When you look at how `md5deep` is
