@@ -11,6 +11,59 @@ from PIL import Image
 from xxhash import xxh32, xxh64, xxh128
 
 
+class DiffSanityPlan:
+    hash_fn_options = (md5, xxh32, xxh64, xxh128)
+
+    # xxh128 may be 20% faster but md5 is more standard
+    hash_fn = md5
+
+    custom_filetype_handlers = {
+        # compressed photos (JPGs)
+        ("jpg", "jpeg", "heif", "png"): pillow_bytes_no_exif_metadata,
+        # raw photos (C-RAW)
+        ("cr2", "cr3"): rawpy_bytes_no_exif_metadata,
+        # encoded videos
+        ("mov", "mp4"): file_bytes,
+        # raw videos
+        ("mlv", "yuv"): file_bytes,
+    }
+
+    # hash full file bytes if no custom handler registered
+    default_filetype_handler = file_bytes
+
+    # filename (not path) as str, mtime (as ISO8601 str), num bytes (as str)
+    file_primary_key = filename_mtime_numbytes
+
+    # where hashing results in backup folder are stroed as caching speedup
+    manifest_file = "filehash.sum"
+
+    # rewrite manifest in backup folder upon every successful run?
+    rewrite_manifest = True
+
+    # skip .cr2/.cr3 files for debugging to speed up repeated test runs?
+    debug_skip_raw = False
+
+    # skip % of files in source for debugging to speed up repeated test runs
+    # 0 means 100% of files are processed (0 are skipped)
+    debug_skip_percent = 0
+
+
+def pillow_bytes_no_exif_metadata(file_path, fs_obj):
+    pass
+
+
+def rawpy_bytes_no_exif_metadata(file_path, fs_obj):
+    pass
+
+
+def file_bytes(file_path, fs_obj):
+    pass
+
+
+def filename_mtime_numbytes(file_path, fs_obj):
+    pass
+
+
 def get_file_hash(file_path, fs_obj):
     """Generate an MD5 hash for the file's bytes, handling image files specially."""
     SKIP_RAW = False
