@@ -103,10 +103,12 @@ def get_manifest(directory):
     with fs.open_fs(directory) as fs_obj:
         if fs_obj.exists("filehash.sum"):
             with fs_obj.open("filehash.sum") as manifest:
-                cachedict = {(datestr, filestr, bytestr): md5sum
-                            for datestr, filestr, bytestr, md5sum in (
-                                line.strip().split(" | ")
-                                for line in manifest)}
+                cachedict = {
+                    (datestr, filestr, bytestr): md5sum
+                    for datestr, filestr, bytestr, md5sum in (
+                        line.strip().split(" | ") for line in manifest
+                    )
+                }
                 return cachedict
     return {}
 
@@ -151,9 +153,13 @@ def manifest(folder):
     """Check for manifest file (filehash.sum) and print manifest stats."""
     cachedict = get_manifest(folder)
     if len(cachedict) == 0:
-        print(f"No {folder}/filehash.sum file found, or no manifest entries present in file.")
+        print(
+            f"No {folder}/filehash.sum file found, or no manifest entries present in file."
+        )
         return
-    print(f"{folder}/filehash.sum file found with {len(cachedict)} entries. Printing 5 of them:")
+    print(
+        f"{folder}/filehash.sum file found with {len(cachedict)} entries. Printing 5 of them:"
+    )
     for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
         print(primary_key, hash)
         if i == 5:
@@ -173,13 +179,6 @@ def check(source_folder, backup_folder, report):
     """Check that all files in source_folder are backed up in backup_folder."""
     source_hashes = generate_hashes(source_folder)
     backup_hashes = generate_hashes(backup_folder)
-
-    # TODO: experiment with caching
-    #cachedict = {eval(key): value for key, value in (line.strip().split(" | ") for line in open("cachefile", "r"))}
-    #print(cachedict.items()[0])
-
-    # could cache the results here with a SQLite database or similar
-    # would need to figure out how to hash the source and backup media drives (lsblk perhaps?)
 
     missing_hashes = {
         h: source_hashes[h] for h in source_hashes if h not in backup_hashes
