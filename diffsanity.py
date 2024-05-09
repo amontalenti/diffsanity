@@ -92,20 +92,42 @@ def generate_primary_key(file_path, fs_obj):
     # Get modification time as UTC ISO8601 date string
     utc_mtime = dt.datetime.utcfromtimestamp(int(info.modified.timestamp())).isoformat()
     # Get size in num bytes
-    size = info.size
+    size = str(info.size)
     return (utc_mtime, filename, size)
+
+
+def get_manifest(directory):
+    """Looks for filehash.sum in directory, parses it, returns cachedict.
+
+    Returns empty dictionary ({}) if file isn't found."""
+    with fs.open_fs(directory) as fs_obj:
+        if fs_obj.exists("filehash.sum"):
+            with fs_obj.open("filehash.sum") as manifest:
+                cachedict = {(datestr, filestr, bytestr): md5sum
+                            for datestr, filestr, bytestr, md5sum in (
+                                line.strip().split(" | ")
+                                for line in manifest)}
+                return cachedict
+    return {}
 
 
 def generate_hashes(directory):
     """Generate hashes for all files in the directory."""
     print(f"Generating hashes for {directory}:")
     hashes = {}
+    cachedict = get_manifest(directory)
     with fs.open_fs(directory) as fs_obj:
         for path in Walker().files(fs_obj):
-            print(f"{path} | ", end="", flush=True)
-            file_hash = get_file_hash(path, fs_obj)
-            print(f"{file_hash}", end="", flush=True)
             primary_key = generate_primary_key(path, fs_obj)
+            # either cached value or new file hash
+            if primary_key in cachedict:
+                cache_hit = "*"
+                file_hash = cachedict[primary_key]
+            else:
+                cache_hit = ""
+                file_hash = get_file_hash(path, fs_obj)
+            print(f"{path} | ", end="", flush=True)
+            print(f"{cache_hit}{file_hash}", end="", flush=True)
             print(f" | {primary_key}", flush=True)
             hashes[file_hash] = path
     print(" Done.")
@@ -121,6 +143,21 @@ def cli():
 def version():
     """Display the version of the tool."""
     click.echo("diffsanity version 0.1")
+
+
+@cli.command()
+@click.argument("folder")
+def manifest(folder):
+    """Check for manifest file (filehash.sum) and print manifest stats."""
+    cachedict = get_manifest(folder)
+    if len(cachedict) == 0:
+        print(f"No {folder}/filehash.sum file found, or no manifest entries present in file.")
+        return
+    print(f"{folder}/filehash.sum file found with {len(cachedict)} entries. Printing 5 of them:")
+    for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
+        print(primary_key, hash)
+        if i == 5:
+            return
 
 
 @cli.command()
