@@ -14,6 +14,44 @@ on the image content.
 For all other file types, `diffsanity` treats the files as binary blobs and
 hashes their entire byte content.
 
+## Why?
+
+This tool scratches my own itch as an amateur photographer with terabytes of
+photography data and way too many photo media cards with layers of backup
+redundancy that don't quite fit with one another.
+
+This includes a ["dual-slot dumb RAID"][raid] on both of my camera bodies, a
+USB3 SSD drive as a "lazy dumping ground" of all my photos across shooting
+sessions, a `restic` repo I use as my snapshot-based chunk-deduped backup
+repository, and `rclone` which does a WAN copy of my restic repo to Backblaze
+B2 for off-site backup, completing my 3-2-1 backup scheme.
+
+`diffsanity` fills a gap in my backup workflow that I couldn't fill with
+existing tools. That is: making absolutely sure, as a sanity check, that all
+the image data from my SD cards and CompactFlash cards made it onto my backup
+SSD drive.
+
+It stems from the fact that many of my photos/videos are not exact binary
+duplicates, but instead near-duplicates, due to edge cases around metadata
+handling.
+
+So I always wonder, "did I manage to back everything up from my two SD
+cards for my Canon R7, as well as the 1 SD Card and 1 CF Card for my Canon 5D
+Mark III?" And I couldn't get `rsync` or `rclone check` to answer this question
+for me. So I rolled my own in Python.
+
+See [amontalenti.com/photos][photos] for more on my approach to photography.
+
+I worked on `diffsanity` during Recurse Center's **Never Graduate Week**, aka
+NGW 2024, in their lovely space in Brooklyn, NY. Thank you, RC! :octopus:
+
+More info on RC [here][RC] and more info on what NGW is like [here][NGW].
+Never Graduate!
+
+[photos]: https://amontalenti.com/photos
+[RC]: https://recurse.com
+[NGW]: https://www.recurse.com/blog/114-never-graduate-week-2017-how-we-planned-and-ran-our-annual-alumni-week
+
 ## Dependencies
 
 Install `diffsanity` by cloning the repository and installing the required
@@ -64,6 +102,100 @@ python diffsanity.py manifest <folder>
 This subcommand checks whether a `filehash.sum` manifest file is present in the
 folder, and, if it is, it prints a few of its entries. It does not generate
 the manifest; a manifest is generated when you do use the `check` sub-command.
+
+## High-Level Design
+
+This Python class does a nice job of documenting the high level design of
+`diffsanity`:
+
+```python
+class DiffSanityPlan:
+    hash_fn_options = (md5, xxh32, xxh64, xxh128)
+
+    # xxh128 may be 20% faster but md5 is more standard
+    hash_fn = md5
+
+    custom_filetype_handlers = {
+        # compressed photos (JPGs)
+        ("jpg", "jpeg", "heif", "png"): pillow_bytes_no_exif_metadata,
+        # raw photos (C-RAW)
+        ("cr2", "cr3"): rawpy_bytes_no_exif_metadata,
+        # encoded videos
+        ("mov", "mp4"): file_bytes,
+        # raw videos
+        ("mlv", "yuv"): file_bytes,
+    }
+
+    # hash full file bytes if no custom handler registered
+    default_filetype_handler = file_bytes
+
+    # filename (not path) as str, mtime (as ISO8601 str), num bytes (as str)
+    file_primary_key = filename_mtime_numbytes
+
+    # where hashing results in backup folder are stroed as caching speedup
+    manifest_file = "filehash.sum"
+```
+
+The design is covered with prose below.
+
+## Example run
+
+Against a source and backup folder like this:
+
+```
+❯ tree example
+example
+├── backup
+│   └── sdcard1
+│       ├── 1I1A3890.mp4
+│       ├── IU0C5091.CR2
+│       ├── IU0C5091.JPG
+│       └── README.txt
+└── src
+    ├── 1I1A3890-Copy.mp4
+    ├── IU0C5091.CR2
+    ├── IU0C5091.JPG
+    ├── IU0C5094.CR2
+    ├── IU0C5094.JPG
+    └── README.txt
+```
+
+Running diffsanity returns this output:
+
+```
+❯ python diffsanity.py check example/src/ example/backup/
+
+Generating hashes for example/src/ ('*' prefix on hash means cache hit):
+/IU0C5091.JPG | d865a5863daf8c0acb65de4ef814d5bd
+/IU0C5091.CR2 | 20b388dd349bf471d5d4fab6d1e69dff
+/README.txt | d8e8fca2dc0f896fd7cb4cb0031ba249
+/IU0C5094.CR2 | 2ea442fd190a0de1331456a06d2c4c79
+/IU0C5094.JPG | 9918a3cf405b18b583c7a10a03cf5304
+/1I1A3890-Copy.mp4 | 9db7e5a8b126e2a93dc26dec7ae5a40e
+Done.
+
+Generating hashes for example/backup/ ('*' prefix on hash means cache hit):
+/sdcard1/IU0C5091.JPG | d865a5863daf8c0acb65de4ef814d5bd
+/sdcard1/IU0C5091.CR2 | 20b388dd349bf471d5d4fab6d1e69dff
+/sdcard1/README.txt | d8e8fca2dc0f896fd7cb4cb0031ba249
+/sdcard1/1I1A3890.mp4 | 9db7e5a8b126e2a93dc26dec7ae5a40e
+ Done.
+
+Some hashes are missing in the backup folder:
+Missing /IU0C5094.CR2 with hash 2ea442fd190a0de1331456a06d2c4c79
+Missing /IU0C5094.JPG with hash 9918a3cf405b18b583c7a10a03cf5304
+```
+
+There are 3 interesting things to notice about this:
+
+- it found 2 photo files missing from the backup (named `IUOC5094.JPG/CR2`)
+- it did not consider `1I1A3890.mp4` to be missing, because a hash-identical file
+  named `1I1A3890-Copy.mp4` is in the backup folder
+- it worked regardless of the fact that the backup folder has the files in a
+  parent directory called `/sdcard1/` even though no such parent directory
+  exists in the source folder
+
+Of course, you can also tell that it used MD5 hashes throughout the process.
 
 ## Implementation details
 
@@ -129,7 +261,7 @@ file trees.
 
 ### Support multiple source folders
 
-In a common use case, let's say I have an SDCard and a CompactFlash card, both
+In a common use case, let's say I have an SD Card and a CompactFlash card, both
 plugged into the same USB-C reader. I want to check if all the data from both
 of those is in the backup folder. I could support this by implementing
 something like `--and, -a`, as in:
