@@ -93,10 +93,13 @@ folder. This file contains pre-computed hashes for each of the files, keyed by
 
 This results in speedups of over 100,000% in cases where you are doing repeated
 runs and only a few new files have been added to the source or backup folder.
-In my real-world testing, a `check` run against a source folder with 3,000
-image files and 250GB of data and a 1TB backup drive with 12,000 image files
-went from taking over 2 hours (hashing every file) to taking only **5 seconds**
-when using the manifest files on both sides.
+In my real-world testing, a `check` run that took **2 hours** dropped to **5
+seconds.** (That one felt good.)
+
+That is, when run against a source media card with 3,000 image files (250GB of
+data) and a backup SSD drive 12,000 image files (1TB data), calculating all the
+hashes would normally take **2 hours** but when consulting the manifest files
+would run in **5 seconds instead**. (Feels even better the second time.)
 
 See below for more implementation details.
 
