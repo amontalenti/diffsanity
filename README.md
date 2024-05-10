@@ -99,7 +99,7 @@ seconds.** (That one felt good.)
 That is, when run against a source media card with 3,000 image files (250GB of
 data) and a backup SSD drive 12,000 image files (1TB data), calculating all the
 hashes would normally take **2 hours** but when consulting the manifest files
-would run in **5 seconds instead**. (Feels even better the second time.)
+it would run in **5 seconds instead**. (Feels even better the second time.)
 
 See below for more implementation details.
 
