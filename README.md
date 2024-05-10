@@ -336,8 +336,7 @@ together into a stack and move the files after the first one in a series into a
 neat folder. But this seems pretty far outside the current remit of `diffsanity`
 as a backup tool, so I'll leave it here as an idea for now.
 
-[stack]: https://support.google.com/photos/answer/14169846?hl=en
-
+[stacks]: https://support.google.com/photos/answer/14169846?hl=en
 [imagehash]: https://pypi.org/project/ImageHash/
 
 ## Concerns
