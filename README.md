@@ -7,9 +7,9 @@ filesystems, typically used for verifying backups.
 
 It generates MD5 hashes for all files in a source directory and checks that
 these hashes are present in a backup directory. Special handling is included
-for image files (JPG, PNG, CR2, CR3), where the tool processes images to strip
-out EXIF metadata before hashing, ensuring that comparisons focus solely on the
-image content.
+for image files (JPG, PNG, HEIF, CR2, CR3), where the tool processes images to
+strip out EXIF metadata before hashing, ensuring that comparisons focus solely
+on the image content.
 
 For all other file types, `diffsanity` treats the files as binary blobs and
 hashes their entire byte content.
@@ -20,6 +20,7 @@ Install `diffsanity` by cloning the repository and installing the required
 dependencies via `pip`. These requirements include:
 
 - `Pillow`, for handling JPG and other common image types
+- `pi-heif`, for handling HEIF image files common on Apple devices
 - `rawpy`, for handling Canon RAW (cr2/cr3) images
 - `xxhash` (optional), for using a faster hashing algorithm than MD5
 - `PyFilesystem`, for traversing the filesystem
@@ -41,6 +42,26 @@ its files, and then ensure these hashes are present (somewhere) in the
 `backup_folder`.
 
 If any hashes are missing, diffsanity will report the missing files.
+
+You can use the `-r, --report` option to produce a missing file report in a
+plain text file.
+
+### `diffsanity.py manifest` sub-command
+
+To speed up repeated runs of `diffsanity` against large folders of binary
+images, it generates a manifest file (named `filehash.sum`) in the root of the
+folder. This file contains pre-computed hashes for each of the files, keyed by
+filename, mtime, and numbytes. This results in speedups of over 100,000% in
+cases where you are doing repeated runs and only a few new files have been
+added to the source or backup folder. See below for more implementation
+details.
+
+```
+python diffsanity.py manifest <folder>
+```
+
+This subcommand checks whether a `filehash.sum` manifest file is present in the
+folder, and, if it is, it prints a few of its entries.
 
 ## Implementation details
 
@@ -69,7 +90,7 @@ Rather than rehashing a backup folder, this tool will look for a file called
 pre-computed hashes for "primary key" representations of the files, namely the
 filename (as a str), mtime in ISO8601 format (as a str), and num bytes (as a
 str). This is because computing an MD5 or other hash of large binary files is
-CPU- and I/O-intensive, so the caching does speedups of up to 150,000% for
+CPU- and I/O-intensive, so the caching does speedups of up to 100,000% for
 large file trees.
 
 ## Future ideas
@@ -107,7 +128,7 @@ hashing algorithms.
 
 ### Advanced `rsync` and `rclone` usage
 
-Though I know there isn't any tool out there that peers into JPG and C-RAW
+I am pretty sure there isn't a tool out there that peers into JPG and C-RAW
 files to look only at the "sensor bytes" rather than the full bytestream
 including metadata, and that `rclone` and `rsync` definitely don't help with
 that. I do wonder how much of `diffsanity` reinvents clever scripting of
@@ -122,7 +143,20 @@ Another idea was to use an optimized tool like `md5deep -r`, and then only
 do a further "peer-into-the-file" comparison if I find identically named
 files with different hashes.
 
-### CPU performance
+The clincher for me to build my own tool was that I couldn't figure out how to
+work around these two intrinsic problems two my use case:
+
+- no custom filetype hashing rules (e.g. hash jpg _without_ exif metadata,
+  _just_ hash the jpg pixel data only)
+- requirement that source and destination files are in same relative path of
+  file tree, e.g. `src/a/b` needs to be in `dest/a/b`, no match if `b` is
+  actually in `dest/c/d/e/b`, even if `b` is md5 identical on both sides
+
+Once I realized that both of these problems could be handled pretty easily in
+Python code, and that `PyFilesystem2`, `Pillow`, and `hashlib.md5` could do the
+work I needed, I had now entered a pleasurable rabbit hole of coding.
+
+### CPU performance when hashing
 
 This tool can suffer not just from GIL performance issues (single core) but
 also I/O and CPU interleaving issues. When you look at how `md5deep` is

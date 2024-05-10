@@ -8,7 +8,10 @@ import rawpy
 from fs.errors import ResourceNotFound
 from fs.walk import Walker
 from PIL import Image
+from pi_heif import register_heif_opener
 from xxhash import xxh32, xxh64, xxh128
+
+register_heif_opener()
 
 
 def pillow_bytes_no_exif_metadata(file_path, fs_obj):
@@ -98,10 +101,10 @@ def get_file_hash(file_path, fs_obj):
 
 def get_file_bytes(file_path, fs_obj):
     """For known file types, convert the file into a byte array sans metadata."""
-    if file_path.lower().endswith((".jpg", ".jpeg", ".png")):
+    if file_path.lower().endswith((".jpg", ".jpeg", ".png", ".heif")):
         try:
             with fs_obj.open(file_path, "rb") as f:
-                # using this technique strips Exif metadata on JPG/PNG image
+                # using this technique strips Exif metadata on JPG image
                 image = Image.open(f)
                 image_bytes = image.tobytes()
                 return image_bytes
