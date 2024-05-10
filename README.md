@@ -101,7 +101,7 @@ python diffsanity.py manifest <folder>
 
 This subcommand checks whether a `filehash.sum` manifest file is present in the
 folder, and, if it is, it prints a few of its entries. It does not generate
-the manifest; a manifest is generated when you do use the `check` sub-command.
+the manifest; a manifest is meant to be generated after you use the `check` sub-command.
 
 ## High-Level Design
 
