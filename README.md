@@ -1,4 +1,4 @@
-# diffsanity - sanity checks via binary hashing and diffing
+# diffsanity - sanity checks via hashing and diffing
 
 ## Description
 
