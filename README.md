@@ -1,4 +1,4 @@
-# diffsanity - sanity checks for file backups
+# diffsanity - sanity checks via binary hashing and diffing
 
 ## Description
 
