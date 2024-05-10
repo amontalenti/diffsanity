@@ -219,14 +219,12 @@ def version():
 def manifest(folder):
     """Check for manifest file (filehash.sum) and print manifest first 5 lines."""
     cachedict = get_manifest(folder)
-    if len(cachedict) == 0:
-        print(
-            f"No {folder}/filehash.sum file found, or no manifest entries present in file."
-        )
+    num_entries = len(cachedict)
+    filehash_sum = f"{folder}/filehash.sum"
+    if num_entries == 0:
+        print(f"No {filehash_sum} file found, or no manifest entries in file.")
         return
-    print(
-        f"{folder}/filehash.sum file found with {len(cachedict)} entries. Printing 5 of them:"
-    )
+    print(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
     for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
         print(primary_key, hash)
         if i == 5:
