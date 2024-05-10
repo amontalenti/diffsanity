@@ -97,6 +97,12 @@ detection. Although this wouldn't be as helpful in a backup context, it could
 lead to techniques for clustering near-duplicate images with a shell-friendly
 and UNIXy workflow, which could be quite cool.
 
+An example Python library to use for this would be [imagehash][imagehash],
+which supports average, perceptual, difference, wavelet, and crop-resistant
+hashing algorithms.
+
+[imagehash]: https://pypi.org/project/ImageHash/
+
 ## Concerns
 
 ### Advanced `rsync` and `rclone` usage
