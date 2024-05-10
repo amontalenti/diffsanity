@@ -31,6 +31,12 @@ def filename_mtime_numbytes(file_path, fs_obj):
 
 
 class DiffSanityPlan:
+    """This class is the start of a refactoring plan to use the above
+    functions to clean up the code below.
+
+    This will remove all the if/else branches and flags from the below code and
+    make it more delcarative."""
+
     hash_fn_options = (md5, xxh32, xxh64, xxh128)
 
     # xxh128 may be 20% faster but md5 is more standard
@@ -57,7 +63,7 @@ class DiffSanityPlan:
     manifest_file = "filehash.sum"
 
     # rewrite manifest in backup folder upon every successful run?
-    rewrite_manifest = True
+    rewrite_manifest = False
 
     # skip .cr2/.cr3 files for debugging to speed up repeated test runs?
     debug_skip_raw = False
@@ -65,6 +71,12 @@ class DiffSanityPlan:
     # skip % of files in source for debugging to speed up repeated test runs
     # 0 means 100% of files are processed (0 are skipped)
     debug_skip_percent = 0
+
+
+#
+# End of refactoring plan, start of the working implementation of diffsanity
+# --------------------------------------------------------------------------
+#
 
 
 def get_file_hash(file_path, fs_obj):
@@ -83,8 +95,6 @@ def get_file_hash(file_path, fs_obj):
     if USE_XXHASH_ALGO:
         # Debug option to try using the xxhash library, as described here:
         # https://xxhash.com/
-        hash_fn = xxh32
-        hash_fn = xxh64
         hash_fn = xxh128
 
     if file_bytes is None:
@@ -127,17 +137,16 @@ def generate_primary_key(file_path, fs_obj):
     Generates a primary key for the given file path using PyFilesystem2.
 
     The primary key is a tuple containing:
+    - mtime: last modification time of the file, as an ISO8601 timestamp str
     - filename: the name of the file (not the full path)
-    - mtime: last modification time of the file, as an integer timestamp
-    - size: size of the file in bytes
+    - size: size of the file in bytes, as a str
 
     Parameters:
         file_path (str): The path to the file.
         fs_obj (FS): A PyFilesystem2 filesystem object.
 
-
     Returns:
-        tuple: A tuple (filename, mtime, size) serving as the primary key.
+        tuple: A 3-tuple (mtime, filename, size) as the primary key.
     """
     # Split the file path into directory path and filename
     dir_path, filename = os.path.split(file_path)
@@ -146,16 +155,16 @@ def generate_primary_key(file_path, fs_obj):
         raise ResourceNotFound(f"No file found at the specified path: {file_path}")
     info = fs_obj.getinfo(file_path, namespaces=["details"])
     # Get modification time as UTC ISO8601 date string
-    utc_mtime = dt.datetime.utcfromtimestamp(int(info.modified.timestamp())).isoformat()
+    mtime = dt.datetime.utcfromtimestamp(int(info.modified.timestamp())).isoformat()
     # Get size in num bytes
     size = str(info.size)
-    return (utc_mtime, filename, size)
+    return (mtime, filename, size)
 
 
 def get_manifest(directory):
-    """Looks for filehash.sum in directory, parses it, returns cachedict.
+    """Looks for `filehash.sum` in directory, parses it, returns cachedict.
 
-    Returns empty dictionary ({}) if file isn't found."""
+    Returns empty dictionary (`{}`) if file isn't found."""
     with fs.open_fs(directory) as fs_obj:
         if fs_obj.exists("filehash.sum"):
             with fs_obj.open("filehash.sum") as manifest:
@@ -185,6 +194,7 @@ def generate_hashes(directory):
                 cache_hit = ""
                 file_hash = get_file_hash(path, fs_obj)
             print(f"{path} | ", end="", flush=True)
+            # {cache_hit} is just "*" when there is a hit
             print(f"{cache_hit}{file_hash}", end="", flush=True)
             print(f" | {primary_key}", end="", flush=True)
             print("", flush=True)
@@ -207,7 +217,7 @@ def version():
 @cli.command()
 @click.argument("folder")
 def manifest(folder):
-    """Check for manifest file (filehash.sum) and print manifest stats."""
+    """Check for manifest file (filehash.sum) and print manifest first 5 lines."""
     cachedict = get_manifest(folder)
     if len(cachedict) == 0:
         print(
@@ -233,7 +243,11 @@ def manifest(folder):
     help="Generate a report file listing missing files.",
 )
 def check(source_folder, backup_folder, report):
-    """Check that all files in source_folder are backed up in backup_folder."""
+    """Check that all files in source_folder are backed up in backup_folder.
+
+    Note: currently, though `filehash.sum` manifest files are supported, they
+    are not automatically generated upon running this tool. That will come in
+    the next version."""
     source_hashes = generate_hashes(source_folder)
     backup_hashes = generate_hashes(backup_folder)
 
@@ -259,6 +273,7 @@ def check(source_folder, backup_folder, report):
             click.echo(f"Missing file report generated in: {report}")
     else:
         for _, _, _ in iterate_hashes():
+            # iterate_hashes() will generate some basic stdout console output
             pass
 
 

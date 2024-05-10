@@ -21,10 +21,10 @@ dependencies via `pip`. These requirements include:
 
 - `Pillow`, for handling JPG and other common image types
 - `pi-heif`, for handling HEIF image files common on Apple devices
-- `rawpy`, for handling Canon RAW (cr2/cr3) images
-- `xxhash` (optional), for using a faster hashing algorithm than MD5
+- `rawpy`, for handling Canon RAW (CR2/CR3) images
+- `xxhash` (experimental), for using a faster hashing algorithm than MD5
 - `PyFilesystem`, for traversing the filesystem
-- `click`, for the CLI interface
+- `click`, for the building the CLI sub-commands and help/usage
 
 ## Usage
 
@@ -51,47 +51,79 @@ plain text file.
 To speed up repeated runs of `diffsanity` against large folders of binary
 images, it generates a manifest file (named `filehash.sum`) in the root of the
 folder. This file contains pre-computed hashes for each of the files, keyed by
-filename, mtime, and numbytes. This results in speedups of over 100,000% in
-cases where you are doing repeated runs and only a few new files have been
-added to the source or backup folder. See below for more implementation
-details.
+`(filename, mtime, and numbytes)`.
+
+This results in speedups of over 100,000% in cases where you are doing repeated
+runs and only a few new files have been added to the source or backup folder.
+See below for more implementation details.
 
 ```
 python diffsanity.py manifest <folder>
 ```
 
 This subcommand checks whether a `filehash.sum` manifest file is present in the
-folder, and, if it is, it prints a few of its entries.
+folder, and, if it is, it prints a few of its entries. It does not generate
+the manifest; a manifest is generated when you do use the `check` sub-command.
 
 ## Implementation details
 
 ### Consider the binary hash, not full file path
 
-The paths aren't matched on source media and backup folder sides. Thus, we are
-hunting for identical or nearly-identical files in different filepaths in the
-backup folder tree. Since the full file path on either side is ignored for the
-calculation of whether a given binary file is "missing" within `diffsanity` it
-means you can know for sure a given source file has been backed up "somewhere"
-in the backup folder.
+The full paths needn't match on source media and backup folder sides. This is
+an intentional design decision, since we can use the binary hash to know a given
+file made it "somewhere" in the backup folder tree.
+
+Thus, this tool hunts for identical or nearly-identical files in different
+filepaths in the backup folder tree. When it doesn't find a given md5 hash
+from the source in the backup folder, that's what it reports as a missing file.
+
+Since the full file path on either side is ignored for the calculation of
+whether a given binary file is "missing" within `diffsanity`, it means when it
+reports there are no missing files from source to backup, you can know **for
+sure** a given source file has been backed up "somewhere" in the backup folder.
+Thus the sanity moniker.
+
+The whole idea is that I run this before wiping source media as a final "sanity
+check". Usually, my source folders are mounted SD Cards or CF Cards, which I want
+to wipe clean. But I also want to know, for sure, that their contents have been
+backed up. And that's even if I haven't actually backed up **that specific
+card**, because maybe it is itself meant to be a ["dual-slot dumb RAID"][raid]
+backup of a different card that I've already backed up.
 
 ### Strip the EXIF metadata by looking at image pixel bytes only
 
-The most important filetype-specific rule `diffsanity` implements does hashes
-of big photo files like JPGs and C-RAW while stripping EXIF metadata away. This
+The most important filetype-specific rule `diffsanity` implements is to hash
+big photo files like JPGs and C-RAW while stripping EXIF metadata away. This
 means that photo files that contain the same image pixels, but different
-metadata, will hash to the same value. This helps especially because on Canon
-hardware you have multiple SD/CF card writers set up in a dumb RAID and the
-metadata across those RAID'ed media tends to get out of sync.
+metadata, will hash to the same value.
+
+This helps especially because on Canon hardware you have multiple SD/CF card
+writers set up in a ["dual-slot dumb RAID"][raid] and the metadata across those
+RAID'ed media tends to get out of sync. A simple example here is that I might
+mark a photograph as a "favorite" or "keeper" on my camera body, which modifies
+the JPG/RAW's "Rating" property in the EXIF metadata. But the way the "dumb
+RAID" in these Camera bodies works, it only modifies the EXIF metadata for the
+"primary" card, not the backup/RAID'ed card.
+
+[raid]: https://www.eos-magazine.com/articles/eos_feature/dual-card-slot.html
+
+That means I can end up in situations where I have identically named files,
+with identical image sensor content, but different EXIF metadata, and thus
+different md5 hashes. Thus a tool like `rclone` and `rsync` will think these
+are different files. But `diffsanity` can peer inside the files thanks to its
+filetype-specific rules.
 
 ### Key files on `(filename, mtime, numbytes)` to enable hash caching
 
-Rather than rehashing a backup folder, this tool will look for a file called
-`filehash.sum`. This file contains pipe-separated values (` | `) to store
-pre-computed hashes for "primary key" representations of the files, namely the
-filename (as a str), mtime in ISO8601 format (as a str), and num bytes (as a
-str). This is because computing an MD5 or other hash of large binary files is
-CPU- and I/O-intensive, so the caching does speedups of up to 100,000% for
-large file trees.
+Rather than rehashing an entire backup folder every time `check` runs, this
+tool will look for a file called `filehash.sum`. This file contains
+pipe-separated values (` | `) to store pre-computed hashes for "primary key"
+representations of the files, namely the filename (as a str), mtime in ISO8601
+format (as a str), and num bytes (as a str).
+
+This is because computing an MD5 or other hash of large binary files is CPU-
+and I/O-intensive, so the caching does speedups of up to 100,000% for large
+file trees.
 
 ## Future ideas
 
@@ -99,21 +131,53 @@ large file trees.
 
 In a common use case, let's say I have an SDCard and a CompactFlash card, both
 plugged into the same USB-C reader. I want to check if all the data from both
-of those is in the backup folder.
+of those is in the backup folder. I could support this by implementing
+something like `--and, -a`, as in:
+
+```
+python diffsanity src1/ --and src2/ --and src3/ backup/
+```
+
+... which would scan `src1/`, `src2/`, and `src3/` before comparing against the
+backup folder `backup/`.
+
+### Support videos the same way the tool supports images
+
+The same EXIF metadata problem exists for video, and `exiftool` is able to
+see EXIF metadata on Canon MP4 video files. But stripping EXIF metadata away
+from videos is a bit more involved. I wasn't sure whether to pull in something
+like `ffmpeg-python` (which might be slow and have complex dependencies), or to
+just shell out to...
+
+```
+exiftool -all= FILES
+```
+
+... since that strips the metadata rather quickly through some binary hacking.
+The issue with running `exiftool` is that it'd create temporary files so I might
+have to use some I/O buffer tricks.
+
+There's also `PyExifTool` which is a command-line wrapper. Anyway, for now, we
+do full binary md5 hashes on videos since it's very uncommon for me to edit
+video metadata anyway, and I wanted to save some time.
 
 ### Generate a patch script
 
-Let's say I find out that 100 files from my SDCard are missing from the backup
+Let's say I find out that 100 files from my SD Card are missing from the backup
 folder. I'd like to have a patch script made available as a "repair plan" --
 that is, a script that could rectify the situation. It could be as simple as
 copying the files that are missing to a new folder with a name like
 "patch-YYYY-MM-DD/", and then I can manually rename it afterwards.
 
+The idea is that after you run the patch script, you could re-run `diffsanity
+check`, and find out there are no longer any missing files since the patch
+script got all the files into the backup (in the patch folder).
+
 ### Extend into near-duplicate hashing algorithms
 
 Right now, we're implementing hashing algorithms that are meant to find exact
 duplicates -- at least as far as the image pixel data is concerned. You could
-imagine extended`diffsanity` to support algorithms for "near duplicate"
+imagine extending `diffsanity` to support algorithms for "near duplicate"
 detection. Although this wouldn't be as helpful in a backup context, it could
 lead to techniques for clustering near-duplicate images with a shell-friendly
 and UNIXy workflow, which could be quite cool.
@@ -121,6 +185,18 @@ and UNIXy workflow, which could be quite cool.
 An example Python library to use for this would be [imagehash][imagehash],
 which supports average, perceptual, difference, wavelet, and crop-resistant
 hashing algorithms.
+
+A use case would be to organize rapid-fire "burst" photos into folders, much
+the same way that Google Photos supports ["Photo Stacks"][stacks]. That'd be
+especially helpful for wildlife, sports, and action photographers because the
+high-framerate burst shooting of modern mirrorless and DSLR cameras leads to an
+explosion of files, each of which is almost like a frame of a movie. By using
+an image hashing algorithm, we could perhaps cluster these "burst sessions"
+together into a stack and move the files after the first one in a series into a
+neat folder. But this seems pretty far outside the current remit of `diffsanity`
+as a backup tool, so I'll leave it here as an idea for now.
+
+[stack]: https://support.google.com/photos/answer/14169846?hl=en
 
 [imagehash]: https://pypi.org/project/ImageHash/
 
