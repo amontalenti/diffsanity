@@ -1,5 +1,5 @@
-fakeroot
-missing.txt
+/fakeroot
+/missing.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
