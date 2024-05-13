@@ -1,0 +1,5 @@
+746308829575e17c3331bbcb00c0898b  ./dest/hello.txt
+3f52d078e6dbaa62fe5c1fe5dceafa5d  ./dest/sub/shorter.txt
+746308829575e17c3331bbcb00c0898b  ./src/one/hello.txt
+3f52d078e6dbaa62fe5c1fe5dceafa5d  ./src/two/a-much-longer-filename.txt
+2ff66bc28e8ac8f8a6c14a41bec9a2d1  ./src/two/more/src-only.txt

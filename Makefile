@@ -10,9 +10,15 @@ run-data: # test with basic check against real data
 run-report: # test with basic check, plus report file option
 	python diffsanity.py check --report missing.txt fakeroot/src/ fakeroot/backup/
 
+# -- tests --
+
+.PHONY: test
+test:
+	pytest ./test/
+
 # -- tools --
 
-compile: # compile requirements with uv
+compile: # compile requirements with uv, `pip install uv`
 	uv pip compile requirements.in >requirements.txt
 
 TEMP_FILE := $(shell mktemp)
