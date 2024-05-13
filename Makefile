@@ -17,7 +17,9 @@ compile: # compile requirements with uv
 
 TEMP_FILE := $(shell mktemp)
 compile-dev: requirements.in requirements-dev.in # compile requirements for dev venv
-	cat requirements.in requirements-dev.in >$(TEMP_FILE) && uv pip compile $(TEMP_FILE) >requirements-dev.txt
+	cat requirements.in requirements-dev.in >$(TEMP_FILE) \
+		&& uv pip compile $(TEMP_FILE) >requirements-dev.txt \
+		&& sed -i "s,$(TEMP_FILE),requirements-dev.txt,g" requirements-dev.txt
 
 .PHONY: devenv
 SHELL := /bin/bash
