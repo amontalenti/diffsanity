@@ -1,3 +1,4 @@
+import functools
 import datetime as dt
 import os
 from hashlib import md5
@@ -180,7 +181,7 @@ def get_manifest(directory):
 
 def generate_hashes(directory):
     """Generate hashes for all files in the directory."""
-    print(f"Generating hashes for {directory} ('*' prefix on hash means cache hit):")
+    click.info(f"Generating hashes for {directory} ('*' means cache hit):")
     hashes = {}
     cachedict = get_manifest(directory)
     with fs.open_fs(directory) as fs_obj:
@@ -199,8 +200,13 @@ def generate_hashes(directory):
             print(f" | {primary_key}", end="", flush=True)
             print("", flush=True)
             hashes[file_hash] = path
-    print(" Done.")
+    click.info(" Done.")
     return hashes
+
+
+# Patch click with variations of `echo`.
+click.info = functools.partial(click.echo, err=True)
+click.err = functools.partial(click.echo, err=True)
 
 
 @click.group()
@@ -222,9 +228,9 @@ def manifest(folder):
     num_entries = len(cachedict)
     filehash_sum = f"{folder}/filehash.sum"
     if num_entries == 0:
-        print(f"No {filehash_sum} file found, or no manifest entries in file.")
+        click.err(f"No {filehash_sum} file found, or no manifest entries in file.")
         return
-    print(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
+    click.info(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
     for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
         print(primary_key, hash)
         if i == 5:
@@ -255,23 +261,23 @@ def check(source_folder, backup_folder, report):
 
     def iterate_hashes():
         for hash, path in missing_hashes.items():
-            click.echo(f"Missing {path} with hash {hash}")
+            click.err(f"Missing {path} with hash {hash}")
             full_path = os.path.join(source_folder, path.lstrip("/"))
             yield full_path, path, hash
 
     if not missing_hashes:
-        click.echo("All hashes from source folder are present in the backup folder.")
+        click.info("All hashes from source folder are present in the backup folder.")
         return
 
-    click.echo("Some hashes are missing in the backup folder:")
+    click.err("Some hashes are missing in the backup folder:")
     if report:
         with open(report, "w") as file:
             for full_path, _, _ in iterate_hashes():
                 file.write(f"{full_path}\n")
-            click.echo(f"Missing file report generated in: {report}")
+            click.err(f"Missing file report generated in: {report}")
     else:
         for _, _, _ in iterate_hashes():
-            # iterate_hashes() will generate some basic stdout console output
+            # iterate_hashes() will generate some basic console output
             pass
 
 
