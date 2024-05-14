@@ -14,7 +14,7 @@ run-report: # test with basic check, plus report file option
 
 .PHONY: test
 test:
-	pytest ./test/
+	pytest --cov=. ./test/
 
 # -- tools --
 
