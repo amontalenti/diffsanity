@@ -31,3 +31,5 @@ def test_simple():
 
     for file_path in MISSING:
         assert file_path in result.stderr
+
+    assert result.exit_code != 0

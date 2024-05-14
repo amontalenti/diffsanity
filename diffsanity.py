@@ -280,6 +280,8 @@ def check(source_folder, backup_folder, report):
             # iterate_hashes() will generate some basic console output
             pass
 
+    click.get_current_context().exit(1)
+
 
 if __name__ == "__main__":
     cli()
