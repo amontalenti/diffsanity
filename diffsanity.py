@@ -194,11 +194,11 @@ def generate_hashes(directory):
             else:
                 cache_hit = ""
                 file_hash = get_file_hash(path, fs_obj)
-            print(f"{path} | ", end="", flush=True)
+            click.echo(f"{path} | ", nl=False)
             # {cache_hit} is just "*" when there is a hit
-            print(f"{cache_hit}{file_hash}", end="", flush=True)
-            print(f" | {primary_key}", end="", flush=True)
-            print("", flush=True)
+            click.echo(f"{cache_hit}{file_hash}", nl=False)
+            click.echo(f" | {primary_key}", nl=False)
+            click.echo("")
             hashes[file_hash] = path
     click.info(" Done.")
     return hashes
@@ -232,7 +232,7 @@ def manifest(folder):
         return
     click.info(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
     for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
-        print(primary_key, hash)
+        click.echo(primary_key, hash)
         if i == 5:
             return
 
