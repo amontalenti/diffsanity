@@ -10,7 +10,7 @@ pi-heif==0.16.0
 pillow==10.3.0
     # via pi-heif
 rawpy==0.21.0
-setuptools==69.5.1
+setuptools==70.0.0
     # via fs
 six==1.16.0
     # via fs
