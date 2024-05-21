@@ -180,7 +180,7 @@ def get_manifest(directory):
 
 def generate_hashes(directory):
     """Generate hashes for all files in the directory."""
-    print(f"Generating hashes for {directory} ('*' prefix on hash means cache hit):")
+    info(f"Generating hashes for {directory} ('*' means cache hit):")
     hashes = {}
     cachedict = get_manifest(directory)
     with fs.open_fs(directory) as fs_obj:
@@ -193,14 +193,31 @@ def generate_hashes(directory):
             else:
                 cache_hit = ""
                 file_hash = get_file_hash(path, fs_obj)
-            print(f"{path} | ", end="", flush=True)
+            out(f"{path} | ", nl=False)
             # {cache_hit} is just "*" when there is a hit
-            print(f"{cache_hit}{file_hash}", end="", flush=True)
-            print(f" | {primary_key}", end="", flush=True)
-            print("", flush=True)
+            out(f"{cache_hit}{file_hash}", nl=False)
+            out(f" | {primary_key}", nl=False)
+            out("")
             hashes[file_hash] = path
-    print(" Done.")
+    info(" Done.")
     return hashes
+
+
+def out(*a, **kw):
+    "Print to stdout."
+    click.echo(*a, **kw)
+
+
+def err(*a, **kw):
+    "Print to stderr."
+    kw.setdefault("err", True)
+    click.echo(*a, **kw)
+
+
+def info(*a, **kw):
+    "Log informational detail."
+    kw.setdefault("err", True)
+    click.echo(*a, **kw)
 
 
 @click.group()
@@ -211,7 +228,7 @@ def cli():
 @cli.command()
 def version():
     """Display the version of the tool."""
-    click.echo("diffsanity version 0.1")
+    out("diffsanity version 0.1")
 
 
 @cli.command()
@@ -222,11 +239,11 @@ def manifest(folder):
     num_entries = len(cachedict)
     filehash_sum = f"{folder}/filehash.sum"
     if num_entries == 0:
-        print(f"No {filehash_sum} file found, or no manifest entries in file.")
+        err(f"No {filehash_sum} file found, or no manifest entries in file.")
         return
-    print(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
+    info(f"{filehash_sum} file found ({num_entries} entries). Printing first 5:")
     for i, (primary_key, hash) in enumerate(cachedict.items(), 1):
-        print(primary_key, hash)
+        out(primary_key, hash)
         if i == 5:
             return
 
@@ -255,24 +272,26 @@ def check(source_folder, backup_folder, report):
 
     def iterate_hashes():
         for hash, path in missing_hashes.items():
-            click.echo(f"Missing {path} with hash {hash}")
+            err(f"Missing {path} with hash {hash}")
             full_path = os.path.join(source_folder, path.lstrip("/"))
             yield full_path, path, hash
 
     if not missing_hashes:
-        click.echo("All hashes from source folder are present in the backup folder.")
+        info("All hashes from source folder are present in the backup folder.")
         return
 
-    click.echo("Some hashes are missing in the backup folder:")
+    err("Some hashes are missing in the backup folder:")
     if report:
         with open(report, "w") as file:
             for full_path, _, _ in iterate_hashes():
                 file.write(f"{full_path}\n")
-            click.echo(f"Missing file report generated in: {report}")
+            err(f"Missing file report generated in: {report}")
     else:
         for _, _, _ in iterate_hashes():
-            # iterate_hashes() will generate some basic stdout console output
+            # iterate_hashes() will generate some basic console output
             pass
+
+    click.get_current_context().exit(1)
 
 
 if __name__ == "__main__":
