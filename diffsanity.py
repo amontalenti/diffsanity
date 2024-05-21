@@ -1,5 +1,8 @@
 import datetime as dt
 import os
+import shutil
+import subprocess
+import tempfile
 from hashlib import md5
 
 import click
@@ -7,8 +10,8 @@ import fs
 import rawpy
 from fs.errors import ResourceNotFound
 from fs.walk import Walker
-from PIL import Image
 from pi_heif import register_heif_opener
+from PIL import Image
 from xxhash import xxh32, xxh64, xxh128
 
 register_heif_opener()
@@ -109,6 +112,50 @@ def get_file_hash(file_path, fs_obj):
     return hasher.hexdigest()
 
 
+def get_bytes_without_exif(fs_obj, file_path, temp_dir="/tmp"):
+    """Return the bytes of a file after running exiftool Exif metadata stripping process.
+
+    More specifically:
+        - Creates a temporary file
+        - Copies file_path over it
+        - Runs exiftool (as subprocess) to strip metadata
+        - Returns those bytes after stripping process
+        - Cleans up temp file
+
+    This is gnarly but it's less gnarly than pulling in ffmpeg and doing a re-encode."""
+    # set to false to turn off the output prefixed with "=>"
+    debug = True
+
+    with tempfile.NamedTemporaryFile(delete=False, dir=temp_dir) as temp_file:
+        temp_file_path = temp_file.name
+
+    try:
+        if debug:
+            out(f"=> copying {file_path} to {temp_dir}")
+        shutil.copy(fs_obj.getospath(file_path), temp_file_path)
+
+        if debug:
+            out(f"=> running exiftool against {temp_file_path} to strip exif")
+        subprocess.run(
+            ["exiftool", "-all=", "-overwrite_original", temp_file_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        with open(temp_file_path, "rb") as f:
+            file_contents = f.read()
+            if debug:
+                out(f"=> returning {len(file_contents)} bytes")
+            # FIXME: all bytes in memory, kinda gnarly for movie files
+            # investigate to what extent other functions actually use iterators/generators
+            return file_contents
+    finally:
+        if debug:
+            out(f"=> cleaning up {temp_file_path}")
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+
 def get_file_bytes(file_path, fs_obj):
     """For known file types, convert the file into a byte array sans metadata."""
     if file_path.lower().endswith((".jpg", ".jpeg", ".png", ".heif")):
@@ -130,6 +177,8 @@ def get_file_bytes(file_path, fs_obj):
                 return image_bytes
         except Exception:
             return None
+    elif file_path.lower().endswith((".mp4", ".mov")):
+        return get_bytes_without_exif(fs_obj, file_path)
 
 
 def generate_primary_key(file_path, fs_obj):
