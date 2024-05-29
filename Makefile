@@ -29,9 +29,9 @@ compile-dev: requirements.in requirements-dev.in # compile requirements for dev 
 
 .PHONY: devenv
 SHELL := /bin/bash
-devenv:
+devenv: compile-dev # make a development environment venv (in ./devenv)
 	uv venv devenv
-	uv pip install -r requirements-dev.txt
+	VIRTUAL_ENV="${PWD}/devenv" uv pip install -r requirements-dev.txt
 	@echo "Done."
 	@echo
 	@echo "Activate devenv:"
