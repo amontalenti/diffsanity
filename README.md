@@ -140,7 +140,7 @@ class DiffSanityPlan:
     # filename (not path) as str, mtime (as ISO8601 str), num bytes (as str)
     file_primary_key = filename_mtime_numbytes
 
-    # where hashing results in backup folder are stroed as caching speedup
+    # where hashing results in backup folder are stored as caching speedup
     manifest_file = "filehash.sum"
 ```
 
